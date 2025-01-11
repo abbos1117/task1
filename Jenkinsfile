@@ -10,56 +10,56 @@ pipeline {
     stages {
         stage('Git - Checkout') {
             steps {
-                echo "Cloning repository..."
+                echo "Repozitoriyani klonlash..."
                 checkout([$class: 'GitSCM', branches: [[name: branchName]], userRemoteConfigs: [[url: gitRepo]]])
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Docker Image Qurish') {
             steps {
                 script {
-                    echo "Building Docker image..."
-                    dockerImage = docker.build("${env.DOCKER_USERNAME}/freeztile:${env.BUILD_NUMBER}") // Build number bilan Docker image yaratish
+                    echo "Docker image yaratish..."
+                    dockerImage = docker.build("${env.DOCKER_USERNAME}/task11:${env.BUILD_NUMBER}") // Build number bilan Docker image yaratish
                     dockerImage.tag("latest") // 'latest' teg qo‘shish
                 }
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Docker Image-ni Push qilish') {
             steps {
                 script {
-                    echo "Authenticating Docker Hub with global credentials..."
+                    echo "Docker Hub uchun global credential bilan autentifikatsiya qilish..."
                     withCredentials([usernamePassword(credentialsId: 'dockerhub_id', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin' // Docker Hub login
                     }
 
-                    echo "Pushing Docker image to Docker Hub..."
+                    echo "Docker image-ni Docker Hub-ga yuborish..."
                     dockerImage.push("${env.BUILD_NUMBER}") // Build number bilan image push
                     dockerImage.push("latest") // 'latest' teg bilan image push
                 }
             }
         }
 
-        stage('Run Docker Image') {
+        stage('Docker Image-ni Ishga Tushirish') {
             steps {
                 script {
-                    echo "Running Docker image..."
-                    // Run the Docker image to verify it works correctly
-                    sh "docker run -d -p 8000:8000 --name test-container ${env.DOCKER_USERNAME}/freeztile:${env.BUILD_NUMBER}"
-                    // You can replace the `-d` flag with additional flags or commands as needed.
-                    echo "Docker image is running in container: test-container"
+                    echo "Docker image-ni ishga tushirish..."
+                    // Docker image-ni to'g'ri ishlashini tekshirish uchun ishga tushir
+                    sh "docker run -d -p 8001:8000 --name test-container ${env.DOCKER_USERNAME}/task11:${env.BUILD_NUMBER}"
+                    // Kerak bo'lsa `-d` bayrog'ini qo'shimcha bayroqlar yoki buyruqlar bilan almashtirishingiz mumkin.
+                    echo "Docker image test-container konteynerida ishlamoqda"
                 }
             }
         }
 
-        stage('Clean Up') {
+        stage('Tozalash') {
             steps {
                 script {
-                    echo "Cleaning up Docker images..."
-                    sh "docker rmi ${env.DOCKER_USERNAME}/freeztile:${env.BUILD_NUMBER} || true" // Build image ni o'chirish
-                    sh "docker rmi ${env.DOCKER_USERNAME}/freeztile:latest || true" // 'latest' image ni o'chirish
-                    sh "docker stop test-container || true" // Stop the test container
-                    sh "docker rm test-container || true" // Remove the test container
+                    echo "Docker image-larni tozalash..."
+                    sh "docker rmi ${env.DOCKER_USERNAME}/task11:${env.BUILD_NUMBER} || true" // Build image-ni o'chirish
+                    sh "docker rmi ${env.DOCKER_USERNAME}/task11:latest || true" // 'latest' image-ni o'chirish
+                    sh "docker stop test-container || true" // Test konteynerini to'xtatish
+                    sh "docker rm test-container || true" // Test konteynerini o'chirish
                 }
             }
         }
@@ -67,14 +67,14 @@ pipeline {
 
     post {
         success {
-            echo "Build and push successful!"
+            echo "Build va push muvaffaqiyatli bajarildi!"
         }
         failure {
-            echo "Build failed!"
+            echo "Build muvaffaqiyatsiz tugadi!"
         }
         always {
-            echo "Cleaning workspace..."
-            cleanWs() // Workspace tozalash
+            echo "Ish joyini tozalash..."
+            cleanWs() // Workspace-ni tozalash
         }
     }
 }
