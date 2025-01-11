@@ -44,7 +44,9 @@ pipeline {
             steps {
                 script {
                     echo "Running Docker image..."
-                    // Run the Docker image to verify it works correctly
+                    // Ensure container is stopped and removed before starting a new one
+                    sh "docker stop test-container || true"
+                    sh "docker rm test-container || true"
                     sh "docker run -d -p 8002:8000 --name test-container ${env.DOCKER_USERNAME}/pipeline:${env.BUILD_NUMBER}"
                     // You can replace the `-d` flag with additional flags or commands as needed.
                     echo "Docker image is running in container: test-container"
@@ -56,6 +58,7 @@ pipeline {
             steps {
                 script {
                     echo "Cleaning up Docker images..."
+                    // Remove the images to prevent conflicts
                     sh "docker rmi ${env.DOCKER_USERNAME}/pipeline:${env.BUILD_NUMBER} || true" // Build image ni o'chirish
                     sh "docker rmi ${env.DOCKER_USERNAME}/pipeline:latest || true" // 'latest' image ni o'chirish
                     sh "docker stop test-container || true" // Stop the test container
