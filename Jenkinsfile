@@ -1,68 +1,49 @@
 pipeline {
-    environment {
-        gitRepo = 'https://github.com/abbos1117/task1' // GitHub repository URL
-        branchName = 'shodlik' // Git branch nomi
-        dockerImage = '' // Docker image o'zgaruvchisi
-    }
-
     agent any
 
     stages {
-        stage('Git - Checkout') {
+        stage('Checkout') {
             steps {
-                echo "Cloning repository..."
-                checkout([$class: 'GitSCM', branches: [[name: branchName]], userRemoteConfigs: [[url: gitRepo]]])
+                // Git repozitoriyasini olish
+                checkout scm
             }
         }
 
+
+    
         stage('Build Docker Image') {
             steps {
-                script {
-                    echo "Building Docker image..."
-                    dockerImage = docker.build("${env.DOCKER_USERNAME}/task1:${env.BUILD_NUMBER}") // Build number bilan Docker image yaratish
-                    dockerImage.tag("latest") // 'latest' teg qo‘shish
-                }
+                // Docker imidj yaratish
+                sh 'docker build -t task1 .'
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Push to Docker Hub') {
             steps {
                 script {
-                    echo "Authenticating Docker Hub with credentials..."
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub_id', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin' // Docker Hub login
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub_id', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                        sh '''
+                            docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+                            docker tag task1 shodlik/task1
+                            docker push shodlik/task1
+                            docker logout
+                        '''
                     }
-
-                    echo "Pushing Docker image to Docker Hub..."
-                    dockerImage.push("${env.BUILD_NUMBER}") // Build number bilan image push
-                    dockerImage.push("latest") // 'latest' teg bilan image push
-                }
-            }
-        }
-
-        stage('Clean Up') {
-            steps {
-                script {
-                    echo "Cleaning up Docker images..."
-                    sh "docker rmi ${env.DOCKER_USERNAME}/task1:${env.BUILD_NUMBER} || true" // Build image ni o'chirish
-                    sh "docker rmi ${env.DOCKER_USERNAME}/task1:latest || true" // 'latest' image ni o'chirish
                 }
             }
         }
     }
 
     post {
+        always {
+            // Build tugagandan keyin kerakli jarayonlarni bajarish
+            echo 'Build Finished'
+        }
         success {
-            echo "Build and push successful!"
+            echo 'Build Succeeded!'
         }
         failure {
-            echo "Build failed!"
-        }
-        always {
-            node('label-name') { // 'label-name' ni sizning agent nomi bilan almashtiring
-                echo "Cleaning workspace..."
-                cleanWs() // Workspace tozalash
-            }
+            echo 'Build Failed!'
         }
     }
 }
