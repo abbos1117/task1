@@ -2,41 +2,67 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_REGISTRY = 'docker.io'
-        IMAGE_NAME = 'shodlik/task1'
-        DOCKER_CREDENTIALS = 'dockerhub_id' // Update with your Jenkins credentials ID for Docker Hub
+        DOCKER_CREDENTIALS = 'docker_credentials'  // Docker credentials stored in Jenkins
+        DOCKER_REGISTRY = 'docker.io'  // Docker registry (Docker Hub)
+        IMAGE_NAME_FREEZETILE = 'shodlik/freeztile'
+        IMAGE_NAME_JENKINS_APP = 'shodlik/jenkins.app'
+        IMAGE_NAME_TASK1 = 'shodlik/task1'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                // Git repo checkout
+                // Checkout the code from the repository
                 checkout scm
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Docker Login') {
             steps {
-                // Build Docker image from the Dockerfile
                 script {
-                    sh 'docker build -t task1 .'
+                    // Login to Docker registry using credentials
+                    docker.withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin ${DOCKER_REGISTRY}"
+                    }
                 }
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Build Docker Image Freeztile') {
             steps {
                 script {
-                    // Login to Docker Hub securely
-                    withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS, 
-                                                      usernameVariable: 'DOCKER_USERNAME', 
-                                                      passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh '''
-                            docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-                            docker tag task1 $DOCKER_USERNAME/task1:latest
-                            docker push $DOCKER_USERNAME/task1:latest
-                            docker logout
-                        '''
+                    // Build the Docker image for Freeztile
+                    def image = docker.build("${IMAGE_NAME_FREEZETILE}:${BUILD_NUMBER}")
+                }
+            }
+        }
+
+        stage('Build Docker Image Jenkins App') {
+            steps {
+                script {
+                    // Build the Docker image for Jenkins App
+                    def image = docker.build("${IMAGE_NAME_JENKINS_APP}:${BUILD_NUMBER}")
+                }
+            }
+        }
+
+        stage('Build Docker Image Task1') {
+            steps {
+                script {
+                    // Build the Docker image for Task1
+                    def image = docker.build("${IMAGE_NAME_TASK1}:${BUILD_NUMBER}")
+                }
+            }
+        }
+
+        stage('Push Docker Images') {
+            steps {
+                script {
+                    // Push each Docker image to Docker registry
+                    docker.withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        sh "docker push ${IMAGE_NAME_FREEZETILE}:${BUILD_NUMBER}"
+                        sh "docker push ${IMAGE_NAME_JENKINS_APP}:${BUILD_NUMBER}"
+                        sh "docker push ${IMAGE_NAME_TASK1}:${BUILD_NUMBER}"
                     }
                 }
             }
@@ -45,16 +71,16 @@ pipeline {
 
     post {
         always {
-            // Always run this block
-            echo 'Build Finished'
+            // Clean up any Docker resources after the job finishes
+            sh "docker logout"
         }
+
         success {
-            // Block runs if the build is successful
-            echo 'Build Succeeded!'
+            echo 'Build and Push Succeeded!'
         }
+
         failure {
-            // Block runs if the build fails
-            echo 'Build Failed!'
+            echo 'Build or Push Failed!'
         }
     }
 }
