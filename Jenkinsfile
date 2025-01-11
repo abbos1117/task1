@@ -3,12 +3,12 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "shodlik/task1"
+        DOCKER_REGISTRY_CREDENTIALS = "dockerhub_id" // Jenkinsda yaratilgan credential ID
     }
 
     stages {
         stage('Checkout') {
             steps {
-                echo "Cloning repository..."
                 checkout scm
             }
         }
@@ -16,26 +16,11 @@ pipeline {
         stage('Build and Push Docker Image') {
             steps {
                 script {
-                    echo "Building Docker image..."
-                    sh """
-                    echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-                    docker build -t ${DOCKER_IMAGE}:${env.BUILD_NUMBER} .
-                    docker tag ${DOCKER_IMAGE}:${env.BUILD_NUMBER} ${DOCKER_IMAGE}:latest
-                    docker push ${DOCKER_IMAGE}:${env.BUILD_NUMBER}
-                    docker push ${DOCKER_IMAGE}:latest
-                    """
-                }
-            }
-        }
-
-        stage('Run Docker Container') {
-            steps {
-                script {
-                    echo "Running container from the latest image..."
-                    sh """
-                    docker rm -f task1-container || true
-                    docker run -d --name task1-container -p 8000:8000 ${DOCKER_IMAGE}:latest
-                    """
+                    docker.withRegistry('https://registry.hub.docker.com', "${DOCKER_REGISTRY_CREDENTIALS}") {
+                        def customImage = docker.build("${DOCKER_IMAGE}:${env.BUILD_NUMBER}")
+                        customImage.push()
+                        customImage.push("latest")
+                    }
                 }
             }
         }
@@ -43,10 +28,10 @@ pipeline {
 
     post {
         success {
-            echo "Build and deployment successful!"
+            echo "Docker image successfully built and pushed!"
         }
         failure {
-            echo "Pipeline failed. Check logs for details."
+            echo "Build failed. Check logs for more details."
         }
     }
 }
