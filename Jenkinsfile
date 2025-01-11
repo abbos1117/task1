@@ -1,7 +1,7 @@
  pipeline {
     environment {
         gitRepo = 'https://github.com/abbos1117/task1' // GitHub repository URL
-        branchName = 'main' // Git branch nomi
+        branchName = 'shodlik' // Git branch nomi
         dockerImage = '' // Docker image o'zgaruvchisi
     }
 
