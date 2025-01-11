@@ -7,7 +7,6 @@ pipeline {
 
     agent any
 
-
     stages {
         stage('Git - Checkout') {
             steps {
@@ -41,12 +40,26 @@ pipeline {
             }
         }
 
+        stage('Run Docker Image') {
+            steps {
+                script {
+                    echo "Running Docker image..."
+                    // Run the Docker image to verify it works correctly
+                    sh "docker run -d -p 8000:8000 --name test-container ${env.DOCKER_USERNAME}/freeztile:${env.BUILD_NUMBER}"
+                    // You can replace the `-d` flag with additional flags or commands as needed.
+                    echo "Docker image is running in container: test-container"
+                }
+            }
+        }
+
         stage('Clean Up') {
             steps {
                 script {
                     echo "Cleaning up Docker images..."
-                    sh "docker rmi ${env.DOCKER_USERNAME}/freeztile:${env.BUILD_NUMBER}  true" // Build image ni o'chirish
-                    sh "docker rmi ${env.DOCKER_USERNAME}/freeztile:latest  true" // 'latest' image ni o'chirish
+                    sh "docker rmi ${env.DOCKER_USERNAME}/freeztile:${env.BUILD_NUMBER} || true" // Build image ni o'chirish
+                    sh "docker rmi ${env.DOCKER_USERNAME}/freeztile:latest || true" // 'latest' image ni o'chirish
+                    sh "docker stop test-container || true" // Stop the test container
+                    sh "docker rm test-container || true" // Remove the test container
                 }
             }
         }
