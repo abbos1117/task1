@@ -3,6 +3,8 @@ pipeline {
         gitRepo = 'https://github.com/abbos1117/task1' // GitHub repository URL
         branchName = 'shodlik' // Git branch nomi
         dockerImage = '' // Docker image o'zgaruvchisi
+        DOCKER_USERNAME = credentials('dockerhub_id') // Docker Hub username, Jenkins credentials'dan olish
+        DOCKER_PASSWORD = credentials('dockerhub_password') // Docker Hub password, Jenkins credentials'dan olish
     }
 
     agent any
@@ -19,7 +21,7 @@ pipeline {
             steps {
                 script {
                     echo "Building Docker image..."
-                    dockerImage = docker.build("${env.DOCKER_USERNAME}/task1:${env.BUILD_NUMBER}") // Change name to task1
+                    dockerImage = docker.build("${DOCKER_USERNAME}/task1:${env.BUILD_NUMBER}") // Task1 image ni yaratish
                     dockerImage.tag("latest") // 'latest' teg qo‘shish
                 }
             }
@@ -28,14 +30,11 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 script {
-                    echo "Authenticating Docker Hub with global credentials..."
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub_id', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin' // Docker Hub login
-                    }
-
+                    echo "Authenticating Docker Hub with credentials..."
+                    sh "echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin" // Docker Hub login qilish
                     echo "Pushing Docker image to Docker Hub..."
-                    dockerImage.push("${env.BUILD_NUMBER}") // Build number bilan image push
-                    dockerImage.push("latest") // 'latest' teg bilan image push
+                    dockerImage.push("${env.BUILD_NUMBER}") // Build number bilan image'ni push qilish
+                    dockerImage.push("latest") // 'latest' teg bilan image'ni push qilish
                 }
             }
         }
@@ -44,8 +43,8 @@ pipeline {
             steps {
                 script {
                     echo "Cleaning up Docker images..."
-                    sh "docker rmi ${env.DOCKER_USERNAME}/task1:${env.BUILD_NUMBER} || true" // Build image ni o'chirish
-                    sh "docker rmi ${env.DOCKER_USERNAME}/task1:latest || true" // 'latest' image ni o'chirish
+                    sh "docker rmi ${DOCKER_USERNAME}/task1:${env.BUILD_NUMBER} || true" // Build image ni o'chirish
+                    sh "docker rmi ${DOCKER_USERNAME}/task1:latest || true" // 'latest' image'ni o'chirish
                 }
             }
         }
