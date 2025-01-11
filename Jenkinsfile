@@ -45,7 +45,7 @@ pipeline {
                 script {
                     echo "Running Docker image..."
                     // Run the Docker image to verify it works correctly
-                    sh "docker run -d -p 8000:8000 --name test-container ${env.DOCKER_USERNAME}/pipeline:${env.BUILD_NUMBER}"
+                    sh "docker run -d -p 8002:8000 --name test-container ${env.DOCKER_USERNAME}/pipeline:${env.BUILD_NUMBER}"
                     // You can replace the `-d` flag with additional flags or commands as needed.
                     echo "Docker image is running in container: test-container"
                 }
