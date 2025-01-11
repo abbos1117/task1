@@ -1,4 +1,4 @@
- pipeline {
+pipeline {
     environment {
         gitRepo = 'https://github.com/abbos1117/task1' // GitHub repository URL
         branchName = 'shodlik' // Git branch nomi
@@ -6,7 +6,6 @@
     }
 
     agent any
-
 
     stages {
         stage('Git - Checkout') {
@@ -20,7 +19,7 @@
             steps {
                 script {
                     echo "Building Docker image..."
-                    dockerImage = docker.build("${env.DOCKER_USERNAME}/freeztile:${env.BUILD_NUMBER}") // Build number bilan Docker image yaratish
+                    dockerImage = docker.build("${env.DOCKER_USERNAME}/task1:${env.BUILD_NUMBER}") // Change name to task1
                     dockerImage.tag("latest") // 'latest' teg qo‘shish
                 }
             }
@@ -45,8 +44,8 @@
             steps {
                 script {
                     echo "Cleaning up Docker images..."
-                    sh "docker rmi ${env.DOCKER_USERNAME}/freeztile:${env.BUILD_NUMBER} || true" // Build image ni o'chirish
-                    sh "docker rmi ${env.DOCKER_USERNAME}/freeztile:latest || true" // 'latest' image ni o'chirish
+                    sh "docker rmi ${env.DOCKER_USERNAME}/task1:${env.BUILD_NUMBER} || true" // Build image ni o'chirish
+                    sh "docker rmi ${env.DOCKER_USERNAME}/task1:latest || true" // 'latest' image ni o'chirish
                 }
             }
         }
