@@ -59,7 +59,7 @@ pipeline {
             echo "Build failed!"
         }
         always {
-            node {
+            node('label-name') { // 'label-name' ni sizning agent nomi bilan almashtiring
                 echo "Cleaning workspace..."
                 cleanWs() // Workspace tozalash
             }
