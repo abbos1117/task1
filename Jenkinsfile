@@ -54,18 +54,7 @@ pipeline {
             }
         }
 
-        stage('Clean Up') {
-            steps {
-                script {
-                    echo "Cleaning up Docker images..."
-                    // Remove the images to prevent conflicts
-                    sh "docker rmi ${env.DOCKER_USERNAME}/pipeline:${env.BUILD_NUMBER} || true" // Build image ni o'chirish
-                    sh "docker rmi ${env.DOCKER_USERNAME}/pipeline:latest || true" // 'latest' image ni o'chirish
-                    sh "docker stop test-container || true" // Stop the test container
-                    sh "docker rm test-container || true" // Remove the test container
-                }
-            }
-        }
+
     }
 
     post {
