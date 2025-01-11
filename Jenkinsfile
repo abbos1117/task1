@@ -1,31 +1,40 @@
 pipeline {
     agent any
 
+    environment {
+        DOCKER_REGISTRY = 'docker.io'
+        IMAGE_NAME = 'shodlik/task1'
+        DOCKER_CREDENTIALS = 'dockerhub_id' // Update with your Jenkins credentials ID for Docker Hub
+    }
+
     stages {
         stage('Checkout') {
             steps {
-                // Git repozitoriyasini olish
+                // Git repo checkout
                 checkout scm
             }
         }
 
-
-    
         stage('Build Docker Image') {
             steps {
-                // Docker imidj yaratish
-                sh 'docker build -t task1 .'
+                // Build Docker image from the Dockerfile
+                script {
+                    sh 'docker build -t task1 .'
+                }
             }
         }
 
         stage('Push to Docker Hub') {
             steps {
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub_id', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                    // Login to Docker Hub securely
+                    withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS, 
+                                                      usernameVariable: 'DOCKER_USERNAME', 
+                                                      passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh '''
                             docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-                            docker tag task1 shodlik/task1
-                            docker push shodlik/task1
+                            docker tag task1 $DOCKER_USERNAME/task1:latest
+                            docker push $DOCKER_USERNAME/task1:latest
                             docker logout
                         '''
                     }
@@ -36,13 +45,15 @@ pipeline {
 
     post {
         always {
-            // Build tugagandan keyin kerakli jarayonlarni bajarish
+            // Always run this block
             echo 'Build Finished'
         }
         success {
+            // Block runs if the build is successful
             echo 'Build Succeeded!'
         }
         failure {
+            // Block runs if the build fails
             echo 'Build Failed!'
         }
     }
