@@ -1,86 +1,80 @@
 pipeline {
-    agent any
-
     environment {
-        DOCKER_CREDENTIALS = 'docker_credentials'  // Docker credentials stored in Jenkins
-        DOCKER_REGISTRY = 'docker.io'  // Docker registry (Docker Hub)
-        IMAGE_NAME_FREEZETILE = 'shodlik/freeztile'
-        IMAGE_NAME_JENKINS_APP = 'shodlik/jenkins.app'
-        IMAGE_NAME_TASK1 = 'shodlik/task1'
+        gitRepo = 'https://github.com/abbos1117/task1' // GitHub repository URL
+        branchName = 'shodlik' // Git branch nomi
+        dockerImage = '' // Docker image o'zgaruvchisi
     }
 
+    agent any
+
     stages {
-        stage('Checkout') {
+        stage('Git - Checkout') {
             steps {
-                // Checkout the code from the repository
-                checkout scm
+                echo "Cloning repository..."
+                checkout([$class: 'GitSCM', branches: [[name: branchName]], userRemoteConfigs: [[url: gitRepo]]])
             }
         }
 
-        stage('Docker Login') {
+        stage('Build Docker Image') {
             steps {
                 script {
-                    // Login to Docker registry using credentials
-                    docker.withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin ${DOCKER_REGISTRY}"
+                    echo "Building Docker image..."
+                    dockerImage = docker.build("${env.DOCKER_USERNAME}/freeztile:${env.BUILD_NUMBER}") // Build number bilan Docker image yaratish
+                    dockerImage.tag("latest") // 'latest' teg qo‘shish
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    echo "Authenticating Docker Hub with global credentials..."
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub_id', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin' // Docker Hub login
                     }
+
+                    echo "Pushing Docker image to Docker Hub..."
+                    dockerImage.push("${env.BUILD_NUMBER}") // Build number bilan image push
+                    dockerImage.push("latest") // 'latest' teg bilan image push
                 }
             }
         }
 
-        stage('Build Docker Image Freeztile') {
+        stage('Run Docker Image') {
             steps {
                 script {
-                    // Build the Docker image for Freeztile
-                    def image = docker.build("${IMAGE_NAME_FREEZETILE}:${BUILD_NUMBER}")
+                    echo "Running Docker image..."
+                    // Run the Docker image to verify it works correctly
+                    sh "docker run -d -p 8000:8000 --name test-container ${env.DOCKER_USERNAME}/freeztile:${env.BUILD_NUMBER}"
+                    // You can replace the `-d` flag with additional flags or commands as needed.
+                    echo "Docker image is running in container: test-container"
                 }
             }
         }
 
-        stage('Build Docker Image Jenkins App') {
+        stage('Clean Up') {
             steps {
                 script {
-                    // Build the Docker image for Jenkins App
-                    def image = docker.build("${IMAGE_NAME_JENKINS_APP}:${BUILD_NUMBER}")
-                }
-            }
-        }
-
-        stage('Build Docker Image Task1') {
-            steps {
-                script {
-                    // Build the Docker image for Task1
-                    def image = docker.build("${IMAGE_NAME_TASK1}:${BUILD_NUMBER}")
-                }
-            }
-        }
-
-        stage('Push Docker Images') {
-            steps {
-                script {
-                    // Push each Docker image to Docker registry
-                    docker.withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh "docker push ${IMAGE_NAME_FREEZETILE}:${BUILD_NUMBER}"
-                        sh "docker push ${IMAGE_NAME_JENKINS_APP}:${BUILD_NUMBER}"
-                        sh "docker push ${IMAGE_NAME_TASK1}:${BUILD_NUMBER}"
-                    }
+                    echo "Cleaning up Docker images..."
+                    sh "docker rmi ${env.DOCKER_USERNAME}/freeztile:${env.BUILD_NUMBER} || true" // Build image ni o'chirish
+                    sh "docker rmi ${env.DOCKER_USERNAME}/freeztile:latest || true" // 'latest' image ni o'chirish
+                    sh "docker stop test-container || true" // Stop the test container
+                    sh "docker rm test-container || true" // Remove the test container
                 }
             }
         }
     }
 
     post {
-        always {
-            // Clean up any Docker resources after the job finishes
-            sh "docker logout"
-        }
-
         success {
-            echo 'Build and Push Succeeded!'
+            echo "Build and push successful!"
         }
-
         failure {
-            echo 'Build or Push Failed!'
+            echo "Build failed!"
+        }
+        always {
+            echo "Cleaning workspace..."
+            cleanWs() // Workspace tozalash
         }
     }
 }
