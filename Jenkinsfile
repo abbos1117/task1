@@ -47,6 +47,7 @@ pipeline {
                         docker run -d --name task1-container -p 8000:8000 --restart unless-stopped ${env.DOCKER_USERNAME}/${dockerImageName}:latest
                     """
                 }
+
             }
         }
     }
