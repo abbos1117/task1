@@ -1,11 +1,12 @@
-pipeline {
+ pipeline {
     environment {
         gitRepo = 'https://github.com/abbos1117/task1' // GitHub repository URL
-        branchName = 'test' // Git branch nomi
+        branchName = 'main' // Git branch nomi
         dockerImage = '' // Docker image o'zgaruvchisi
     }
 
     agent any
+
 
     stages {
         stage('Git - Checkout') {
@@ -40,17 +41,6 @@ pipeline {
             }
         }
 
-        stage('Run Docker Container') {
-            steps {
-                script {
-                    echo "Running Docker container from the image..."
-                    sh """
-                        docker run -d --name freeztile-container -p 8080:80 ${env.DOCKER_USERNAME}/freeztile:latest
-                    """
-                }
-            }
-        }
-
         stage('Clean Up') {
             steps {
                 script {
@@ -64,10 +54,10 @@ pipeline {
 
     post {
         success {
-            echo "Build, push, and container run successful!"
+            echo "Build and push successful!"
         }
         failure {
-            echo "Build or run failed!"
+            echo "Build failed!"
         }
         always {
             echo "Cleaning workspace..."
