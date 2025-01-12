@@ -15,11 +15,26 @@ pipeline {
             }
         }
 
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    echo "Installing PHP dependencies..."
+                    sh 'composer install'
+                }
+            }
+        }
+
         stage('Lint Code') {
             steps {
                 script {
                     echo "Running PHP lint checks..."
                     sh 'php -l $(find . -type f -name "*.php")'
+                    
+                    // Fix permissions for vendor binaries
+                    sh 'chmod +x vendor/bin/phpcs'
+                    sh 'chmod +x vendor/bin/phpunit'
+                    
+                    // Run the lint check and PHP code sniffing
                     sh 'vendor/bin/phpcs --standard=PSR12 src/'
                 }
             }
@@ -57,6 +72,8 @@ pipeline {
             steps {
                 script {
                     echo "Running Docker image..."
+                    // Ensure Docker commands have correct permissions
+                    sh "chmod +x /usr/bin/docker"
                     sh "docker stop test-container || true"
                     sh "docker rm test-container || true"
                     sh "docker run -d -p 8000:8000 --name test-container ${env.DOCKER_USERNAME}/pipeline:${env.BUILD_NUMBER}"
