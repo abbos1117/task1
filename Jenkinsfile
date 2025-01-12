@@ -3,6 +3,7 @@ pipeline {
         gitRepo = 'https://github.com/abbos1117/task1'
         branchName = 'shodlik'
         dockerImage = ''
+        stageName = '' // Har bir muhitni aniqlash uchun
     }
 
     agent any
@@ -16,9 +17,12 @@ pipeline {
         }
 
         stage('Lint Code') {
+            when {
+                expression { env.stageName == 'development' }
+            }
             steps {
                 script {
-                    echo "Running PHP lint checks..."
+                    echo "Running PHP lint checks in development..."
                     sh 'php -l $(find . -type f -name "*.php")'
                     sh 'vendor/bin/phpcs --standard=PSR12 src/'
                 }
@@ -26,9 +30,12 @@ pipeline {
         }
 
         stage('Run Tests') {
+            when {
+                expression { env.stageName == 'UAT' }
+            }
             steps {
                 script {
-                    echo "Running unit tests..."
+                    echo "Running unit tests in UAT..."
                     sh 'vendor/bin/phpunit --testdox'
                 }
             }
@@ -36,11 +43,11 @@ pipeline {
 
         stage('Build Docker Image') {
             when {
-                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                expression { env.stageName == 'PROD' }
             }
             steps {
                 script {
-                    echo "Building Docker image..."
+                    echo "Building Docker image in production..."
                     def devImage = docker.build("${env.DOCKER_USERNAME}/pipeline:dev-${env.BUILD_NUMBER}", "--target=dev .")
                     devImage.push("dev-${env.BUILD_NUMBER}")
 
@@ -52,11 +59,11 @@ pipeline {
 
         stage('Run Docker Image') {
             when {
-                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                expression { env.stageName == 'PROD' }
             }
             steps {
                 script {
-                    echo "Running Docker image..."
+                    echo "Running Docker image in production..."
                     sh "docker stop test-container || true"
                     sh "docker rm test-container || true"
                     sh "docker run -d -p 8002:8000 --name test-container ${env.DOCKER_USERNAME}/pipeline:${env.BUILD_NUMBER}"
@@ -67,7 +74,7 @@ pipeline {
 
         stage('Push Docker Image') {
             when {
-                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                expression { env.stageName == 'PROD' }
             }
             steps {
                 script {
@@ -76,7 +83,7 @@ pipeline {
                         sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin'
                     }
 
-                    echo "Pushing Docker image to Docker Hub..."
+                    echo "Pushing Docker image to Docker Hub in production..."
                     dockerImage.push("${env.BUILD_NUMBER}")
                     dockerImage.push("latest")
                 }
@@ -84,6 +91,9 @@ pipeline {
         }
 
         stage('Cleanup') {
+            when {
+                expression { env.stageName == 'PROD' }
+            }
             steps {
                 script {
                     echo "Cleaning up unused Docker images and containers..."
@@ -95,10 +105,10 @@ pipeline {
 
     post {
         success {
-            echo "Build and push successful!"
+            echo "Pipeline execution successful for ${env.stageName}!"
         }
         failure {
-            echo "Build failed!"
+            echo "Pipeline failed in ${env.stageName}!"
             // Optional: Send failure notification here (e.g., Slack or Email)
         }
         always {
