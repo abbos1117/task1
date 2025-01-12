@@ -16,23 +16,16 @@ pipeline {
         }
 
         stage('Lint Code') {
-            steps {
-                script {
-                    echo "Running PHP lint checks..."
+    steps {
+        script {
+            echo "Running PHP lint checks..."
+            sh 'composer install'  // PHP dependensiyalarini o'rnatish
+            sh 'php -l $(find . -type f -name "*.php")'
+            sh 'vendor/bin/phpcs --standard=PSR12 src/'
+               }
+          }
+    }
 
-                    // Run PHP lint on all PHP files
-                    def phpFiles = sh(script: 'find . -type f -name "*.php"', returnStdout: true).trim().split("\n")
-                    if (phpFiles) {
-                        sh "php -l ${phpFiles.join(' ')}"
-                    } else {
-                        echo "No PHP files found to lint."
-                    }
-
-                    // Run PHP CodeSniffer with PSR12 standard
-                    sh 'vendor/bin/phpcs --standard=PSR12 src/'
-                }
-            }
-        }
 
         stage('Run Tests') {
             steps {
