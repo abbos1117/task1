@@ -3,7 +3,7 @@ pipeline {
         gitRepo = 'https://github.com/abbos1117/task1'
         branchName = 'shodlik'
         dockerImage = ''
-        stageName = '' // Har bir muhitni aniqlash uchun
+        stageName = '' // Muvaffaqiyatli ishlash uchun environment orqali o'zgartiriladi
     }
 
     agent any
@@ -57,21 +57,6 @@ pipeline {
             }
         }
 
-        stage('Run Docker Image') {
-            when {
-                expression { env.stageName == 'PROD' }
-            }
-            steps {
-                script {
-                    echo "Running Docker image in production..."
-                    sh "docker stop test-container || true"
-                    sh "docker rm test-container || true"
-                    sh "docker run -d -p 8002:8000 --name test-container ${env.DOCKER_USERNAME}/pipeline:${env.BUILD_NUMBER}"
-                    echo "Docker image is running in container: test-container"
-                }
-            }
-        }
-
         stage('Push Docker Image') {
             when {
                 expression { env.stageName == 'PROD' }
@@ -109,7 +94,6 @@ pipeline {
         }
         failure {
             echo "Pipeline failed in ${env.stageName}!"
-            // Optional: Send failure notification here (e.g., Slack or Email)
         }
         always {
             echo "Cleaning workspace..."
