@@ -1,7 +1,7 @@
 pipeline {
     environment {
         gitRepo = 'https://github.com/abbos1117/task1'
-        branchName = 'shodlik'
+        branchName = 'main'
         dockerImage = ''
     }
 
