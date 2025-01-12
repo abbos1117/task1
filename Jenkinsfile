@@ -34,7 +34,6 @@ pipeline {
                 }
             }
         }
-
         stage('UAT') {
             steps {
                 script {
@@ -71,7 +70,7 @@ pipeline {
             }
         }
     }
-    
+
 
     post {
         success {
