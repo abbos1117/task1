@@ -1,87 +1,109 @@
 pipeline {
     environment {
-        gitRepo = 'https://github.com/abbos1117/task1' // GitHub repository URL
-        branchName = 'shodlik' // Git branch nomi
-        dockerImage = '' // Docker image o'zgaruvchisi
+        gitRepo = 'https://github.com/abbos1117/task1'
+        branchName = 'shodlik'
+        dockerImage = ''
     }
 
     agent any
 
     stages {
-        stage('Development') {
+        stage('Git - Checkout') {
+            steps {
+                echo "Cloning repository..."
+                checkout([$class: 'GitSCM', branches: [[name: branchName]], userRemoteConfigs: [[url: gitRepo]]])
+            }
+        }
+
+        stage('Lint Code') {
             steps {
                 script {
-                    echo "Development bosqichi..."
-                    
-                    echo "Cloning repository..."
-                    checkout([$class: 'GitSCM', branches: [[name: branchName]], userRemoteConfigs: [[url: gitRepo]]])
+                    echo "Running PHP lint checks..."
+                    sh 'php -l $(find . -type f -name "*.php")'
+                    sh 'vendor/bin/phpcs --standard=PSR12 src/'
+                }
+            }
+        }
 
-                    echo "Building Docker image for development..."
-                    dockerImage = docker.build("${env.DOCKER_USERNAME}/pipeline-dev:${env.BUILD_NUMBER}")
-                    dockerImage.tag("latest-dev")
-                    
-                    echo "Authenticating and pushing to Docker Hub..."
+        stage('Run Tests') {
+            steps {
+                script {
+                    echo "Running unit tests..."
+                    sh 'vendor/bin/phpunit --testdox'
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            when {
+                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+            }
+            steps {
+                script {
+                    echo "Building Docker image..."
+                    def devImage = docker.build("${env.DOCKER_USERNAME}/pipeline:dev-${env.BUILD_NUMBER}", "--target=dev .")
+                    devImage.push("dev-${env.BUILD_NUMBER}")
+
+                    dockerImage = docker.build("${env.DOCKER_USERNAME}/pipeline:prod-${env.BUILD_NUMBER}", "--target=prod .")
+                    dockerImage.tag("latest")
+                }
+            }
+        }
+
+        stage('Run Docker Image') {
+            when {
+                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+            }
+            steps {
+                script {
+                    echo "Running Docker image..."
+                    sh "docker stop test-container || true"
+                    sh "docker rm test-container || true"
+                    sh "docker run -d -p 8002:8000 --name test-container ${env.DOCKER_USERNAME}/pipeline:${env.BUILD_NUMBER}"
+                    echo "Docker image is running in container: test-container"
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            when {
+                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+            }
+            steps {
+                script {
+                    echo "Authenticating Docker Hub with global credentials..."
                     withCredentials([usernamePassword(credentialsId: 'dockerhub_id', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin'
-                        dockerImage.push("${env.BUILD_NUMBER}")
-                        dockerImage.push("latest-dev")
                     }
 
-                    echo "Running Docker container for development..."
-                    sh "docker stop dev-container || true"
-                    sh "docker rm dev-container || true"
-                    sh "docker run -d -p 8001:8000 --name dev-container ${env.DOCKER_USERNAME}/pipeline-dev:${env.BUILD_NUMBER}"
-                }
-            }
-        }
-        stage('UAT') {
-            steps {
-                script {
-                    echo "UAT bosqichi..."
-
-                    echo "Pulling Docker image for UAT..."
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub_id', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh 'docker pull ${env.DOCKER_USERNAME}/pipeline-dev:latest-dev'
-                        dockerImage = docker.image("${env.DOCKER_USERNAME}/pipeline-dev:latest-dev")
-                    }
-
-                    echo "Running Docker container for UAT..."
-                    sh "docker stop uat-container || true"
-                    sh "docker rm uat-container || true"
-                    sh "docker run -d -p 8002:8000 --name uat-container ${env.DOCKER_USERNAME}/pipeline-dev:latest-dev"
+                    echo "Pushing Docker image to Docker Hub..."
+                    dockerImage.push("${env.BUILD_NUMBER}")
+                    dockerImage.push("latest")
                 }
             }
         }
 
-        stage('PROD') {
+        stage('Cleanup') {
             steps {
                 script {
-                    echo "PROD bosqichi..."
-
-                    echo "Tagging Docker image for production..."
-                    dockerImage.tag("prod-${env.BUILD_NUMBER}")
-                    dockerImage.push("prod-${env.BUILD_NUMBER}")
-                    
-                    echo "Running Docker container for production..."
-                    sh "docker stop prod-container || true"
-                    sh "docker rm prod-container || true"
-                    sh "docker run -d -p 8003:8000 --name prod-container ${env.DOCKER_USERNAME}/pipeline-dev:prod-${env.BUILD_NUMBER}"
+                    echo "Cleaning up unused Docker images and containers..."
+                    sh "docker system prune -f"
                 }
             }
         }
     }
 
-
     post {
         success {
-            echo "Pipeline successful for all stages!"
+            echo "Build and push successful!"
         }
         failure {
-            echo "Pipeline failed at some stage!"
+            echo "Build failed!"
+            // Optional: Send failure notification here (e.g., Slack or Email)
         }
         always {
             echo "Cleaning workspace..."
-            cleanWs() // Workspace tozalash
+            cleanWs()
         }
     }
 }
