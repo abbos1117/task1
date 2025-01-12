@@ -1,72 +1,102 @@
 pipeline {
-    agent any
-
     environment {
-        // Define any environment variables here if needed
-        // Example:
-        // MY_ENV_VAR = 'value'
+        gitRepo = 'https://github.com/abbos1117/task1'
+        branchName = 'shodlik'
+        dockerImage = ''
     }
 
+    agent any
+
     stages {
-        stage('Checkout SCM') {
+        stage('Git - Checkout') {
             steps {
-                echo 'Cloning repository...'
-                checkout scm
+                echo "Cloning repository..."
+                checkout([$class: 'GitSCM', branches: [[name: branchName]], userRemoteConfigs: [[url: gitRepo]]])
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Lint Code') {
             steps {
-                echo 'Installing dependencies...'
                 script {
-                    // Install PHP dependencies (example for a PHP project)
-                    // Modify this section as needed for your environment
-                    sh '''
-                        if ! php -m | grep -q 'dom'; then
-                            echo "Installing missing PHP extensions..."
-                            apt-get update && apt-get install -y php-xml
-                            docker-php-ext-install dom simplexml
-                        fi
-                    '''
-                    sh 'composer install --ignore-platform-req=ext-dom --ignore-platform-req=ext-simplexml'
+                    echo "Running PHP lint checks..."
+
+                    // Run PHP lint on all PHP files
+                    def phpFiles = sh(script: 'find . -type f -name "*.php"', returnStdout: true).trim().split("\n")
+                    if (phpFiles) {
+                        sh "php -l ${phpFiles.join(' ')}"
+                    } else {
+                        echo "No PHP files found to lint."
+                    }
+
+                    // Run PHP CodeSniffer with PSR12 standard
+                    sh 'vendor/bin/phpcs --standard=PSR12 src/'
                 }
             }
         }
 
         stage('Run Tests') {
             steps {
-                echo 'Running tests...'
-                // Example test step, replace with your actual testing command
-                sh 'phpunit --configuration phpunit.xml'
+                script {
+                    echo "Running unit tests..."
+                    sh 'vendor/bin/phpunit --testdox'
+                }
             }
         }
 
         stage('Build Docker Image') {
+            when {
+                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+            }
             steps {
-                echo 'Building Docker image...'
                 script {
-                    // Example Docker build process
-                    sh 'docker build -t my-app:${BUILD_NUMBER} .'
+                    echo "Building Docker image..."
+                    def devImage = docker.build("${env.DOCKER_USERNAME}/pipeline:dev-${env.BUILD_NUMBER}", "--target=dev .")
+                    devImage.push("dev-${env.BUILD_NUMBER}")
+
+                    dockerImage = docker.build("${env.DOCKER_USERNAME}/pipeline:prod-${env.BUILD_NUMBER}", "--target=prod .")
+                    dockerImage.tag("latest")
+                }
+            }
+        }
+
+        stage('Run Docker Image') {
+            when {
+                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+            }
+            steps {
+                script {
+                    echo "Running Docker image..."
+                    sh "docker stop test-container || true"
+                    sh "docker rm test-container || true"
+                    sh "docker run -d -p 8002:8000 --name test-container ${env.DOCKER_USERNAME}/pipeline:${env.BUILD_NUMBER}"
+                    echo "Docker image is running in container: test-container"
                 }
             }
         }
 
         stage('Push Docker Image') {
+            when {
+                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+            }
             steps {
-                echo 'Pushing Docker image...'
                 script {
-                    // Push the Docker image to a registry (replace with your registry)
-                    sh 'docker push my-app:${BUILD_NUMBER}'
+                    echo "Authenticating Docker Hub with global credentials..."
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub_id', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh 'echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin'
+                    }
+
+                    echo "Pushing Docker image to Docker Hub..."
+                    dockerImage.push("${env.BUILD_NUMBER}")
+                    dockerImage.push("latest")
                 }
             }
         }
 
-        stage('Deploy') {
+        stage('Cleanup') {
             steps {
-                echo 'Deploying application...'
                 script {
-                    // Example deployment step with port mapping 8002:8000
-                    sh 'docker run -d -p 8002:8000 my-app:${BUILD_NUMBER}'
+                    echo "Cleaning up unused Docker images and containers..."
+                    sh "docker system prune -f"
                 }
             }
         }
@@ -74,11 +104,15 @@ pipeline {
 
     post {
         success {
-            echo 'Build succeeded! Cleaning workspace...'
-            cleanWs()  // Clean up workspace after successful build
+            echo "Build and push successful!"
         }
         failure {
-            echo 'Build failed!'
+            echo "Build failed!"
+            // Optional: Send failure notification here (e.g., Slack or Email)
+        }
+        always {
+            echo "Cleaning workspace..."
+            cleanWs()
         }
     }
 }
