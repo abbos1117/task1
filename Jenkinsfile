@@ -35,6 +35,9 @@ pipeline {
         }
 
         stage('Build Docker Image') {
+            when {
+                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+            }
             steps {
                 script {
                     echo "Building Docker image..."
@@ -48,6 +51,9 @@ pipeline {
         }
 
         stage('Run Docker Image') {
+            when {
+                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+            }
             steps {
                 script {
                     echo "Running Docker image..."
@@ -60,6 +66,9 @@ pipeline {
         }
 
         stage('Push Docker Image') {
+            when {
+                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+            }
             steps {
                 script {
                     echo "Authenticating Docker Hub with global credentials..."
@@ -90,6 +99,7 @@ pipeline {
         }
         failure {
             echo "Build failed!"
+            // Optional: Send failure notification here (e.g., Slack or Email)
         }
         always {
             echo "Cleaning workspace..."
